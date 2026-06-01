@@ -18,8 +18,10 @@ class Config(object):
     CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
     TENANT_ID = os.environ.get("TENANT_ID")
 
-    # mais estável do que "common" para app registration específico
-    AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}" if TENANT_ID else "https://login.microsoftonline.com/common"
-
+    AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
     REDIRECT_PATH = "/getAToken"
     SCOPE = ["User.Read"]
+
+    # Se você estiver usando Flask-Session, deixe isso explícito:
+    SESSION_TYPE = "filesystem"
+    SESSION_PERMANENT = False
