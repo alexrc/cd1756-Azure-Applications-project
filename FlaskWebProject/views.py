@@ -9,7 +9,6 @@ from FlaskWebProject import app, db
 from FlaskWebProject.forms import LoginForm, PostForm
 from flask_login import current_user, login_user, logout_user, login_required
 from FlaskWebProject.models import User, Post
-import msal
 import uuid
 
 imageSourceUrl = 'https://' + app.config['BLOB_ACCOUNT'] + '.blob.core.windows.net/' + app.config['BLOB_CONTAINER'] + '/'
@@ -82,19 +81,31 @@ def login():
             next_page = url_for('home')
         return redirect(next_page)
 
-    # Não construir MSAL aqui para não derrubar a página com 500
+    # IMPORTANTÍSSIMO: não cria MSAL aqui
+    # isso evita derrubar a tela de login com erro 500
     return render_template('login.html', title='Sign In', form=form)
 
 
 @app.route('/microsoft_login')
 def microsoft_login():
     try:
+        import msal
+
         session["state"] = str(uuid.uuid4())
 
-        msal_app = _build_msal_app()
-        if msal_app is None:
+        client_id = app.config.get("CLIENT_ID")
+        client_secret = app.config.get("CLIENT_SECRET")
+        authority = app.config.get("AUTHORITY")
+
+        if not client_id or not client_secret or not authority:
             flash("Microsoft sign-in is not configured correctly.")
             return redirect(url_for("login"))
+
+        msal_app = msal.ConfidentialClientApplication(
+            client_id=client_id,
+            client_credential=client_secret,
+            authority=authority
+        )
 
         flow = msal_app.initiate_auth_code_flow(
             scopes=Config.SCOPE,
@@ -120,6 +131,8 @@ def microsoft_login():
 @app.route(Config.REDIRECT_PATH)
 def authorized():
     try:
+        import msal
+
         if request.args.get("state") != session.get("state"):
             flash("State mismatch. Please try signing in again.")
             return redirect(url_for("login"))
@@ -132,10 +145,19 @@ def authorized():
             flash("Authentication flow is missing. Please try again.")
             return redirect(url_for("login"))
 
-        msal_app = _build_msal_app()
-        if msal_app is None:
+        client_id = app.config.get("CLIENT_ID")
+        client_secret = app.config.get("CLIENT_SECRET")
+        authority = app.config.get("AUTHORITY")
+
+        if not client_id or not client_secret or not authority:
             flash("Microsoft sign-in is not configured correctly.")
             return redirect(url_for("login"))
+
+        msal_app = msal.ConfidentialClientApplication(
+            client_id=client_id,
+            client_credential=client_secret,
+            authority=authority
+        )
 
         result = msal_app.acquire_token_by_auth_code_flow(
             flow,
@@ -155,6 +177,7 @@ def authorized():
 
         login_user(user)
         app.logger.info("admin logged in successfully via Microsoft")
+
         return redirect(url_for('home'))
 
     except Exception as ex:
@@ -173,23 +196,3 @@ def logout():
             "?post_logout_redirect_uri=" + url_for("login", _external=True)
         )
     return redirect(url_for('login'))
-
-
-def _build_msal_app():
-    try:
-        client_id = app.config.get("CLIENT_ID")
-        client_secret = app.config.get("CLIENT_SECRET")
-        authority = app.config.get("AUTHORITY")
-
-        if not client_id or not client_secret or not authority:
-            app.logger.error("Missing CLIENT_ID, CLIENT_SECRET, or AUTHORITY")
-            return None
-
-        return msal.ConfidentialClientApplication(
-            client_id=client_id,
-            client_credential=client_secret,
-            authority=authority
-        )
-    except Exception:
-        app.logger.exception("Failed to build MSAL app")
-        return None
