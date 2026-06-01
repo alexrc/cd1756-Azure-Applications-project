@@ -58,6 +58,7 @@ def post(id):
     )
 
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -79,64 +80,95 @@ def login():
 
         return redirect(next_page)
 
+    # login com Microsoft
     session["state"] = str(uuid.uuid4())
+    auth_url = _build_auth_url(scopes=Config.SCOPE, state=session["state"])
 
-    msal_app = msal.ConfidentialClientApplication(
-        app.config["CLIENT_ID"],
-        authority=Config.AUTHORITY,
-        client_credential=app.config["CLIENT_SECRET"]
-    )
-
-    flow = msal_app.initiate_auth_code_flow(
-        scopes=Config.SCOPE,
-        state=session["state"],
-        redirect_uri=url_for("authorized", _external=True)
-    )
-
-    session["flow"] = flow
-    auth_url = flow.get("auth_uri")
-
+    # evita quebrar a página se a URL não for gerada
     if not auth_url:
         flash("Microsoft login could not be initialized.")
         auth_url = "#"
 
-    return render_template(
-        'login.html',
-        title='Sign In',
-        form=form,
-        auth_url=auth_url
-    )
+    return render_template('login.html', title='Sign In', form=form, auth_url=auth_url)
 
 
 @app.route(Config.REDIRECT_PATH)
 def authorized():
-    if request.args.get('state') != session.get("state"):
-        flash("State mismatch. Please try signing in again.")
+    flow = session.get("flow", {})
+
+    if not flow:
+        flash("Microsoft sign-in flow is missing. Please try again.")
+        return redirect(url_for("login"))
+
+    if request.args.get("state") != session.get("state"):
+        flash("State mismatch. Please try again.")
         return redirect(url_for("login"))
 
     if "error" in request.args:
         return render_template("auth_error.html", result=request.args)
 
-    if request.args.get('code'):
-        cache = _load_cache()
+    cache = _load_cache()
 
-        result = _build_msal_app(cache=cache).acquire_token_by_auth_code_flow(
-            session.get("flow", {}),
-            request.args
-        )
+    result = _build_msal_app(cache=cache).acquire_token_by_auth_code_flow(
+        flow,
+        request.args
+    )
 
-        if "error" in result:
-            return render_template("auth_error.html", result=result)
+    if "error" in result:
+        return render_template("auth_error.html", result=result)
 
-        session["user"] = result.get("id_token_claims")
+    session["user"] = result.get("id_token_claims")
 
-        # Regra do projeto: qualquer login Microsoft entra como admin
-        user = User.query.filter_by(username="admin").first()
-        login_user(user)
+    # regra do projeto: login Microsoft entra como admin
+    user = User.query.filter_by(username="admin").first()
+    login_user(user)
 
-        _save_cache(cache)
+    _save_cache(cache)
 
     return redirect(url_for('home'))
+
+
+def _load_cache():
+    cache = msal.SerializableTokenCache()
+    if session.get("token_cache"):
+        cache.deserialize(session["token_cache"])
+    return cache
+
+
+def _save_cache(cache):
+    if cache and cache.has_state_changed:
+        session["token_cache"] = cache.serialize()
+
+
+def _build_msal_app(cache=None, authority=None):
+    client_id = app.config.get("CLIENT_ID") or Config.CLIENT_ID
+    client_secret = app.config.get("CLIENT_SECRET") or Config.CLIENT_SECRET
+    authority = authority or app.config.get("AUTHORITY") or Config.AUTHORITY
+
+    if not client_id or not client_secret or not authority:
+        return None
+
+    return msal.ConfidentialClientApplication(
+        client_id=client_id,
+        client_credential=client_secret,
+        authority=authority,
+        token_cache=cache
+    )
+
+
+def _build_auth_url(authority=None, scopes=None, state=None):
+    msal_app = _build_msal_app(authority=authority)
+    if not msal_app:
+        return None
+
+    flow = msal_app.initiate_auth_code_flow(
+        scopes=scopes or [],
+        state=state,
+        redirect_uri=url_for("authorized", _external=True)
+    )
+
+    session["flow"] = flow
+    return flow.get("auth_uri")
 
 
 @app.route('/logout')
@@ -151,32 +183,3 @@ def logout():
         )
 
     return redirect(url_for('login'))
-
-
-def _load_cache():
-    cache = msal.SerializableTokenCache()
-    if session.get("token_cache"):
-        cache.deserialize(session["token_cache"])
-    return cache
-
-def _save_cache(cache):
-    if cache and cache.has_state_changed:
-        session["token_cache"] = cache.serialize()
-
-def _build_msal_app(cache=None, authority=None):
-    return msal.ConfidentialClientApplication(
-        app.config["CLIENT_ID"],
-        authority=authority or Config.AUTHORITY,
-        client_credential=app.config["CLIENT_SECRET"],
-        token_cache=cache
-    )
-
-def _build_auth_url(authority=None, scopes=None, state=None):
-    flow = _build_msal_app(authority=authority).initiate_auth_code_flow(
-        scopes=scopes or [],
-        state=state,
-        redirect_uri=url_for("authorized", _external=True)
-    )
-    session["flow"] = flow
-    return flow.get("auth_uri")
-
