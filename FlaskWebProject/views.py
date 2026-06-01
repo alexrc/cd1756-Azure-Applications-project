@@ -6,7 +6,7 @@ from flask import render_template, flash, redirect, request, session, url_for
 from werkzeug.urls import url_parse
 from config import Config
 from FlaskWebProject import app, db
-from FlaskWebProject.forms import LoginForm, PostForm
+from FlaskWebProject.forms import PostForm
 from flask_login import current_user, login_user, logout_user, login_required
 from FlaskWebProject.models import User, Post
 import uuid
@@ -49,24 +49,45 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('home'))
 
-    form = LoginForm()
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
 
-    if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
-        if user is None or not user.check_password(form.password.data):
+        user = User.query.filter_by(username=username).first()
+
+        if user is None or not user.check_password(password):
             app.logger.warning("Invalid login attempt")
-            flash('Invalid username or password')
-            return redirect(url_for('login'))
+            return """
+                <h1>Sign In</h1>
+                <p style='color:red;'>Invalid username or password</p>
+                <form method="post">
+                    <p><input type="text" name="username" placeholder="Username"></p>
+                    <p><input type="password" name="password" placeholder="Password"></p>
+                    <p><button type="submit">Sign In</button></p>
+                </form>
+                <h2>OR</h2>
+                <p><a href="/microsoft_login">Sign in with Microsoft</a></p>
+            """
 
-        login_user(user, remember=form.remember_me.data)
+        login_user(user, remember=False)
         app.logger.info(f"{user.username} logged in successfully")
 
         next_page = request.args.get('next')
         if not next_page or url_parse(next_page).netloc != '':
             next_page = url_for('home')
+
         return redirect(next_page)
 
-    return render_template('login.html', title='Sign In', form=form)
+    return """
+        <h1>Sign In</h1>
+        <form method="post">
+            <p><input type="text" name="username" placeholder="Username"></p>
+            <p><input type="password" name="password" placeholder="Password"></p>
+            <p><button type="submit">Sign In</button></p>
+        </form>
+        <h2>OR</h2>
+        <p><a href="/microsoft_login">Sign in with Microsoft</a></p>
+    """
 
 
 @app.route('/microsoft_login')
