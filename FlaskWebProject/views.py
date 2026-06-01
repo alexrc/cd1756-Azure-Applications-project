@@ -65,7 +65,6 @@ def login():
 
     form = LoginForm()
 
-    # Login tradicional
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
         if user is None or not user.check_password(form.password.data):
@@ -81,8 +80,7 @@ def login():
             next_page = url_for('home')
         return redirect(next_page)
 
-    # IMPORTANTÍSSIMO: não cria MSAL aqui
-    # isso evita derrubar a tela de login com erro 500
+    # Não monta auth_url aqui. Isso evita 500 na tela de login.
     return render_template('login.html', title='Sign In', form=form)
 
 
@@ -169,7 +167,6 @@ def authorized():
 
         session["user"] = result.get("id_token_claims")
 
-        # Regra do projeto: qualquer login Microsoft entra como admin
         user = User.query.filter_by(username="admin").first()
         if not user:
             flash("Admin user not found.")
