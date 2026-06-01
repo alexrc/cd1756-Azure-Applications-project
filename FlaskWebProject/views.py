@@ -143,6 +143,7 @@ def authorized():
 
         login_user(user)
         app.logger.info("admin logged in successfully via Microsoft")
+
         return redirect(url_for('home'))
 
     except Exception as ex:
