@@ -1,4 +1,3 @@
-
 import os
 
 class Config(object):
@@ -21,7 +20,3 @@ class Config(object):
     AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
     REDIRECT_PATH = "/getAToken"
     SCOPE = ["User.Read"]
-
-    # Se você estiver usando Flask-Session, deixe isso explícito:
-    SESSION_TYPE = "filesystem"
-    SESSION_PERMANENT = False

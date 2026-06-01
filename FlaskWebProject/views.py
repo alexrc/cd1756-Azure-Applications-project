@@ -85,17 +85,9 @@ def login():
     # Login Microsoft
     session["state"] = str(uuid.uuid4())
 
-    msal_app = _build_msal_app()
-    auth_url = None
-    if msal_app:
-        auth_url = msal_app.get_authorization_request_url(
-            scopes=Config.SCOPE,
-            state=session["state"],
-            redirect_uri=url_for("authorized", _external=True)
-        )
-
+    auth_url = _build_auth_url(scopes=Config.SCOPE, state=session["state"])
     if not auth_url:
-        app.logger.error("Microsoft login URL could not be created.")
+        app.logger.error("Microsoft login URL could not be created")
         auth_url = "#"
 
     return render_template('login.html', title='Sign In', form=form, auth_url=auth_url)
@@ -103,24 +95,65 @@ def login():
 
 @app.route(Config.REDIRECT_PATH)
 def authorized():
-    # Se usuário cancelou ou houve erro da Microsoft
+    if request.args.get("state") != session.get("state"):
+        app.logger.warning("State mismatch in Microsoft login")
+        flash("State mismatch. Please try signing in again.")
+        return redirect(url_for("login"))
+
     if "error" in request.args:
         app.logger.warning(f"Microsoft login failed: {request.args}")
         return render_template("auth_error.html", result=request.args)
 
-    # Valida estado
-    if request.args.get("state") != session.get("state"):
-        app.logger.warning("Microsoft login state mismatch")
-        flash("State mismatch. Please try again.")
-        return redirect(url_for("login"))
+    if request.args.get("code"):
+        result = _build_msal_app().acquire_token_by_auth_code_flow(
+            session.get("flow", {}),
+            request.args
+        )
 
-    code = request.args.get("code")
-    if not code:
-        app.logger.warning("Microsoft login returned no authorization code")
-        flash("No authorization code was returned.")
-        return redirect(url_for("login"))
+        if "error" in result:
+            app.logger.warning(f"Token acquisition failed: {result}")
+            return render_template("auth_error.html", result=result)
 
-    msal_app = _build_msal_app()
-    if not msal_app:
-        app.logger.error("MSAL app could not be created")
-        flash("Microsoft sign-in is not configured correctly.")
+        session["user"] = result.get("id_token_claims")
+
+        # Regra do projeto: qualquer login Microsoft entra como admin
+        user = User.query.filter_by(username="admin").first()
+        if not user:
+            app.logger.error("Admin user not found")
+            flash("Admin user not found.")
+            return redirect(url_for("login"))
+
+        login_user(user)
+        app.logger.info("admin logged in successfully via Microsoft")
+
+    return redirect(url_for('home'))
+
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    if session.get("user"):
+        session.clear()
+        return redirect(
+            Config.AUTHORITY + "/oauth2/v2.0/logout" +
+            "?post_logout_redirect_uri=" + url_for("login", _external=True)
+        )
+    return redirect(url_for('login'))
+
+
+def _build_msal_app(cache=None, authority=None):
+    return msal.ConfidentialClientApplication(
+        app.config["CLIENT_ID"],
+        authority=authority or Config.AUTHORITY,
+        client_credential=app.config["CLIENT_SECRET"]
+    )
+
+
+def _build_auth_url(authority=None, scopes=None, state=None):
+    flow = _build_msal_app(authority=authority).initiate_auth_code_flow(
+        scopes=scopes or [],
+        state=state,
+        redirect_uri=url_for("authorized", _external=True)
+    )
+    session["flow"] = flow
+    return flow.get("auth_uri")

@@ -6,18 +6,16 @@ from flask import Flask
 from config import Config
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
-from flask_session import Session
 
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Logging
+# logging básico
 if not app.debug:
     logging.basicConfig(level=logging.INFO)
     app.logger.setLevel(logging.INFO)
     app.logger.info("Application startup")
 
-Session(app)
 db = SQLAlchemy(app)
 login = LoginManager(app)
 login.login_view = 'login'
