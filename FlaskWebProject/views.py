@@ -106,7 +106,7 @@ def microsoft_login():
         flow = msal_app.initiate_auth_code_flow(
             scopes=Config.SCOPE,
             state=session["state"],
-            redirect_uri=url_for("authorized", _external=True)
+            redirect_uri="https://udacitycms-fmfmayhzcccwcqbu.canadacentral-01.azurewebsites.net/getAToken"
         )
 
         session["flow"] = flow
