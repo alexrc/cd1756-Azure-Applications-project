@@ -17,8 +17,6 @@ class Config(object):
     CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
     TENANT_ID = os.environ.get("TENANT_ID")
 
-    # Recomendação prática para app registration multitenant + personal accounts
     AUTHORITY = "https://login.microsoftonline.com/common"
-
     REDIRECT_PATH = "/getAToken"
     SCOPE = ["User.Read"]

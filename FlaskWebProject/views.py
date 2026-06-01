@@ -19,11 +19,7 @@ imageSourceUrl = 'https://' + app.config['BLOB_ACCOUNT'] + '.blob.core.windows.n
 @login_required
 def home():
     posts = Post.query.all()
-    return render_template(
-        'index.html',
-        title='Home Page',
-        posts=posts
-    )
+    return render_template('index.html', title='Home Page', posts=posts)
 
 
 @app.route('/new_post', methods=['GET', 'POST'])
@@ -34,12 +30,7 @@ def new_post():
         post = Post()
         post.save_changes(form, request.files['image_path'], current_user.id, new=True)
         return redirect(url_for('home'))
-    return render_template(
-        'post.html',
-        title='Create Post',
-        imageSource=imageSourceUrl,
-        form=form
-    )
+    return render_template('post.html', title='Create Post', imageSource=imageSourceUrl, form=form)
 
 
 @app.route('/post/<int:id>', methods=['GET', 'POST'])
@@ -50,12 +41,7 @@ def post(id):
     if form.validate_on_submit():
         post.save_changes(form, request.files['image_path'], current_user.id)
         return redirect(url_for('home'))
-    return render_template(
-        'post.html',
-        title='Edit Post',
-        imageSource=imageSourceUrl,
-        form=form
-    )
+    return render_template('post.html', title='Edit Post', imageSource=imageSourceUrl, form=form)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -80,7 +66,6 @@ def login():
             next_page = url_for('home')
         return redirect(next_page)
 
-    # Não monta auth_url aqui. Isso evita 500 na tela de login.
     return render_template('login.html', title='Sign In', form=form)
 
 
@@ -91,18 +76,10 @@ def microsoft_login():
 
         session["state"] = str(uuid.uuid4())
 
-        client_id = app.config.get("CLIENT_ID")
-        client_secret = app.config.get("CLIENT_SECRET")
-        authority = app.config.get("AUTHORITY")
-
-        if not client_id or not client_secret or not authority:
-            flash("Microsoft sign-in is not configured correctly.")
-            return redirect(url_for("login"))
-
         msal_app = msal.ConfidentialClientApplication(
-            client_id=client_id,
-            client_credential=client_secret,
-            authority=authority
+            client_id=app.config["CLIENT_ID"],
+            client_credential=app.config["CLIENT_SECRET"],
+            authority=app.config["AUTHORITY"]
         )
 
         flow = msal_app.initiate_auth_code_flow(
@@ -143,18 +120,10 @@ def authorized():
             flash("Authentication flow is missing. Please try again.")
             return redirect(url_for("login"))
 
-        client_id = app.config.get("CLIENT_ID")
-        client_secret = app.config.get("CLIENT_SECRET")
-        authority = app.config.get("AUTHORITY")
-
-        if not client_id or not client_secret or not authority:
-            flash("Microsoft sign-in is not configured correctly.")
-            return redirect(url_for("login"))
-
         msal_app = msal.ConfidentialClientApplication(
-            client_id=client_id,
-            client_credential=client_secret,
-            authority=authority
+            client_id=app.config["CLIENT_ID"],
+            client_credential=app.config["CLIENT_SECRET"],
+            authority=app.config["AUTHORITY"]
         )
 
         result = msal_app.acquire_token_by_auth_code_flow(
@@ -174,7 +143,6 @@ def authorized():
 
         login_user(user)
         app.logger.info("admin logged in successfully via Microsoft")
-
         return redirect(url_for('home'))
 
     except Exception as ex:
@@ -189,7 +157,8 @@ def logout():
     if session.get("user"):
         session.clear()
         return redirect(
-            Config.AUTHORITY + "/oauth2/v2.0/logout" +
-            "?post_logout_redirect_uri=" + url_for("login", _external=True)
+            Config.AUTHORITY + "/oauth2/v2.0/logout"
+            + "?post_logout_redirect_uri="
+            + url_for("login", _external=True)
         )
     return redirect(url_for('login'))
