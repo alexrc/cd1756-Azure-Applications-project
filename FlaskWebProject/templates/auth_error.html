@@ -1,7 +1,12 @@
-{% extends "layout.html" %}
-
-{% block content %}
-<h1>Authentication Error</h1>
-<p>{{ result }}</p>
-<p><a href="{{ url_for('login') }}">Back to login</a></p>
-{% endblock %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Authentication Error</title>
+</head>
+<body>
+    <h1>Authentication Error</h1>
+    <pre>{{ result }}</pre>
+    <p><a href="/login">Back to login</a></p>
+</body>
+</html>
