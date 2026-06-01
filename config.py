@@ -13,6 +13,9 @@ class Config(object):
     SQL_USER_NAME = os.environ.get("SQL_USER_NAME")
     SQL_PASSWORD = os.environ.get("SQL_PASSWORD")
 
+    SQLALCHEMY_DATABASE_URI = f"mssql+pyodbc://{SQL_USER_NAME}:{SQL_PASSWORD}@{SQL_SERVER}/{SQL_DATABASE}?driver=ODBC+Driver+17+for+SQL+Server"
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
     CLIENT_ID = os.environ.get("CLIENT_ID")
     CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
     TENANT_ID = os.environ.get("TENANT_ID")
