@@ -10,11 +10,9 @@ from flask_login import LoginManager
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# logging básico
-if not app.debug:
-    logging.basicConfig(level=logging.INFO)
-    app.logger.setLevel(logging.INFO)
-    app.logger.info("Application startup")
+logging.basicConfig(level=logging.INFO)
+app.logger.setLevel(logging.INFO)
+app.logger.info("Application startup")
 
 db = SQLAlchemy(app)
 login = LoginManager(app)
